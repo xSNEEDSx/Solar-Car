@@ -1,0 +1,275 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+
+# Scrollable Frame for GUI
+class ScrollableFrame(tk.Frame):
+    def __init__(self, master, **kwargs):
+        tk.Frame.__init__(self, master, **kwargs)
+
+        self.canvas = tk.Canvas(self, borderwidth=0, background="#ffffff")
+        self.canvas.grid(row=1, column=0, sticky="news")
+
+        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollbar.grid(row=1, column=1, sticky="news")
+
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.canvas.bind('<Configure>', self.on_canvas_configure)
+
+        self.frame = tk.Frame(self.canvas, background="#ffffff")
+        self.canvas.create_window((5, 5), window=self.frame, anchor="nw")
+
+    def on_canvas_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+
+# GUI Class
+class GUI:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Reverb Time GUI")
+        self.master.geometry('1600x1200')
+        self.master.resizable(True, True)
+
+        self.scrollable_frame = ScrollableFrame(self.master)
+        self.scrollable_frame.grid(row=8, column=0, rowspan=5, columnspan=3, padx=0, pady=0, sticky='news')
+        self.scrollable_frame.canvas.config(width=1250, height=500)
+
+        # Create a frame for each plot
+        self.free_frame = tk.Frame(self.scrollable_frame.frame)
+        self.free_frame.grid(row=1, column=0, padx=10, pady=10, sticky='news')
+
+        self.rt60_low_plot_frame = tk.Frame(self.scrollable_frame.frame)
+        self.rt60_low_plot_frame.grid(row=1, column=1, padx=10, pady=10, sticky='news')
+
+        self.rt60_mid_plot_frame = tk.Frame(self.scrollable_frame.frame)
+        self.rt60_mid_plot_frame.grid(row=2, column=0, padx=10, pady=10, sticky='news')
+
+        self.rt60_high_plot_frame = tk.Frame(self.scrollable_frame.frame)
+        self.rt60_high_plot_frame.grid(row=2, column=1, padx=10, pady=10, sticky='news')
+
+        # Frequency change buttons
+        self.low_freq_button = tk.Button(self.master, text="Low Frequency", command=lambda: self.update_plots("low"))
+        self.low_freq_button.grid(row=0, column=1, padx=(199, 1600), sticky='n')
+        self.mid_freq_button = tk.Button(self.master, text="Mid Frequency", command=lambda: self.update_plots("mid"))
+        self.mid_freq_button.grid(row=0, column=1, padx=(198, 1400), sticky='n')
+        self.high_freq_button = tk.Button(self.master, text="High Frequency", command=lambda: self.update_plots("high"))
+        self.high_freq_button.grid(row=0, column=1, padx=(202, 1200), sticky='n')
+
+        # Create empty plots for RT60 values
+        self.plot_empty(self.free_frame, title="Selected Graph")
+        self.plot_empty(self.rt60_low_plot_frame, title="Second Graph")
+        self.plot_empty(self.rt60_mid_plot_frame, title="Comparison Graph")
+        self.plot_empty(self.rt60_high_plot_frame, title="Multi-Comparison Graph")
+
+        # Button to load file
+        self.load_btn = tk.Button(self.master, text='Create Matrix', command=self.create_matrix_input_window)
+        self.load_btn.grid(row=0, column=0, sticky='w', padx=5)
+
+        # Display the name of the file selected
+        self.load_field = tk.StringVar()
+        self.load_field.set("Loaded File... ")
+        self.load_field_frame = tk.Entry(self.master, width=60, textvariable=self.load_field)
+        self.load_field_frame.grid(row=0, column=0, sticky='w', padx=100)
+
+        # Display file conversion status
+        self.load_conversion_to_wav = tk.StringVar()
+        self.load_conversion_to_wav.set("WAV Conversion: No conversion necessary")
+        self.load_conversion_to_wav_label = tk.Label(self.master, textvariable=self.load_conversion_to_wav)
+        self.load_conversion_to_wav_label.grid(row=3, column=0, columnspan=1, sticky='w', padx=5)
+
+        # Display channel conversion status
+        self.load_conversion_to_mono = tk.StringVar()
+        self.load_conversion_to_mono.set("Mono Conversion: No conversion necessary")
+        self.load_conversion_to_mono_label = tk.Label(self.master, textvariable=self.load_conversion_to_mono)
+        self.load_conversion_to_mono_label.grid(row=4, column=0, columnspan=1, sticky='w', padx=5)
+
+        # Display initial file
+        self.load_initial_file = tk.StringVar()
+        self.load_initial_file.set("Initial File: None")
+        self.load_initial_file_label = tk.Label(self.master, textvariable=self.load_initial_file)
+        self.load_initial_file_label.grid(row=1, column=0, columnspan=1, sticky='w', padx=5)
+
+        # Display initial channel count
+        self.load_initial_channel = tk.StringVar()
+        self.load_initial_channel.set("Initial Channel Count: None")
+        self.load_initial_channel_label = tk.Label(self.master, textvariable=self.load_initial_channel)
+        self.load_initial_channel_label.grid(row=2, column=0, columnspan=1, sticky='w', padx=5)
+
+        # Display metadata (duration)
+        self.load_duration = tk.StringVar()
+        self.load_duration.set("Duration: None")
+        self.load_duration_label = tk.Label(self.master, textvariable=self.load_duration)
+        self.load_duration_label.grid(row=1, column=1, columnspan=1, sticky='w', padx=5)
+
+        # Display metadata (artist)
+        self.load_artist = tk.StringVar()
+        self.load_artist.set("Artist: None")
+        self.load_artist_label = tk.Label(self.master, textvariable=self.load_artist)
+        self.load_artist_label.grid(row=2, column=1, columnspan=1, sticky='w', padx=5)
+
+        # Display metadata (title)
+        self.load_title = tk.StringVar()
+        self.load_title.set("Title: None")
+        self.load_title_label = tk.Label(self.master, textvariable=self.load_title)
+        self.load_title_label.grid(row=3, column=1, columnspan=1, sticky='w', padx=5)
+
+        # Display metadata (album)
+        self.load_album = tk.StringVar()
+        self.load_album.set("Album: None")
+        self.load_album_label = tk.Label(self.master, textvariable=self.load_album)
+        self.load_album_label.grid(row=4, column=1, columnspan=1, sticky='w', padx=5)
+
+        # Display metadata (genre)
+        self.load_genre = tk.StringVar()
+        self.load_genre.set("Genre: None")
+        self.load_genre_label = tk.Label(self.master, textvariable=self.load_genre)
+        self.load_genre_label.grid(row=5, column=1, columnspan=1, sticky='w', padx=5)
+
+        # Display metadata (date)
+        self.load_year = tk.StringVar()
+        self.load_year.set("Year: None")
+        self.load_year_label = tk.Label(self.master, textvariable=self.load_year)
+        self.load_year_label.grid(row=6, column=1, columnspan=1, sticky='w', padx=5)
+
+        # Display frequency of highest resonance
+        self.hz_highest = tk.StringVar()
+        self.hz_highest.set("Frequency of Highest Resonance: None")
+        self.hz_highest_label = tk.Label(self.master, textvariable=self.hz_highest)
+        self.hz_highest_label.grid(row=5, column=0, columnspan=1, sticky='w', padx=5)
+
+    def plot_empty(self, plot_frame, title=None):
+        fig, ax = plt.subplots(figsize=(6, 4.2))
+        if title:
+            ax.set_title(title)
+        ax.set_xlabel("X Label")
+        ax.set_ylabel("Y Label")
+        ax.grid()
+
+        # Embed the plot in the plot_frame
+        plot_canvas = FigureCanvasTkAgg(fig, master=plot_frame)
+        plot_canvas.draw()
+        plot_canvas.get_tk_widget().grid(row=0, column=0, sticky='news', padx=10, pady=10)
+
+    def plot_matrix_in_selected_graph(self, matrix):
+        # Clear the previous plot in the free_frame
+        for widget in self.free_frame.winfo_children():
+            widget.destroy()
+
+        # Create a new plot for the matrix in the Selected Graph area
+        fig, ax = plt.subplots(figsize=(6, 4.2))
+        ax.imshow(matrix, cmap="viridis", aspect='auto')
+        ax.set_title("Matrix Visualization")
+        ax.set_xlabel("Columns")
+        ax.set_ylabel("Rows")
+        ax.grid(False)
+
+        # Embed the plot in the free_frame
+        plot_canvas = FigureCanvasTkAgg(fig, master=self.free_frame)
+        plot_canvas.draw()
+        plot_canvas.get_tk_widget().grid(row=0, column=0, sticky='news', padx=10, pady=10)
+
+    # Function to generate input fields for the matrix
+    def create_matrix_input_window(self):
+        window = tk.Toplevel(self.master)
+        window.title("Matrix Input")
+
+        # Input for rows and columns
+        reading_label = tk.Label(window, text="Enter the number of readings:")
+        reading_label.pack()
+
+        reading_entry = tk.Entry(window)
+        reading_entry.pack()
+
+        minute_sep_label = tk.Label(window, text="Enter the time separation in minutes:")
+        minute_sep_label.pack()
+        
+        minute_sep_entry = tk.Entry(window)
+        minute_sep_entry.pack()
+
+        total_time_label = tk.Label(window, text="Enter the total number of minutes:")
+        total_time_label.pack()
+
+        total_time_entry = tk.Entry(window)
+        total_time_entry.pack()
+
+        matrix_frame = tk.Frame(window)
+        matrix_frame.pack()
+
+        def generate_matrix_input():
+            # Clear any previous matrix entries in matrix_frame
+            for widget in matrix_frame.winfo_children():
+                widget.destroy()
+
+            try:
+                # Retrieve the user inputs
+                readings = int(reading_entry.get())
+                minute_sep = float(minute_sep_entry.get())
+                max_time = int(total_time_entry.get())
+            except ValueError:
+                messagebox.showerror("Input Error",
+                                     "Please enter valid numbers for readings, minute separation, and total time.")
+                return
+
+            # Initialize current time for time labels
+            current_time = 0
+            col = 1  # Column 0 will have 'Time' label
+
+            # Set 'Time' and 'Voltage' labels
+            tk.Label(matrix_frame, text="Time").grid(row=0, column=0, padx=5, pady=5)
+            tk.Label(matrix_frame, text="Voltage").grid(row=1, column=0, padx=5, pady=5)
+
+            # Generate time labels dynamically based on minute separation and max time
+            while current_time <= max_time:
+                label = tk.Label(matrix_frame, text=f"{current_time} min")
+                label.grid(row=0, column=col, padx=5, pady=5)
+                current_time += minute_sep
+                col += 1
+
+            # Generate the matrix input fields for voltages
+            self.matrix_entries = []  # Store the matrix entries for access
+            for i in range(1, readings + 1):
+                row_entries = []
+                for j in range(1, col):  # Entry fields for voltage values
+                    entry = tk.Entry(matrix_frame, width=5)
+                    entry.grid(row=i, column=j, padx=5, pady=5)
+                    row_entries.append(entry)
+                self.matrix_entries.append(row_entries)
+
+        def print_matrix(self):
+            try:
+                # Print the matrix from the input fields
+                matrix = []
+                for i in range(len(self.matrix_entries)):
+                    row = []
+                    for j in range(len(self.matrix_entries[i])):
+                        row.append(int(self.matrix_entries[i][j].get()))  # Collect matrix data from entry fields
+                    matrix.append(row)
+
+                result.delete('1.0', tk.END)  # Clear previous result
+                for row in matrix:
+                    result.insert(tk.END,
+                                  ' '.join(map(str, row)) + '\n')  # Display matrix in a text widget or print
+            except ValueError:
+                messagebox.showerror("Input Error", "Please fill all entries with valid integers.")
+
+        generate_button = tk.Button(window, text="Generate Matrix", command=generate_matrix_input)
+        generate_button.pack(pady=10)
+
+        print_button = tk.Button(window, text="Print Matrix", command=print_matrix)
+        print_button.pack(pady=10)
+
+        result = tk.Text(window, height=10, width=30)
+        result.pack(pady=10)
+
+
+def main():
+    root = tk.Tk()
+    app = GUI(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
