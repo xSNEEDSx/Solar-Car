@@ -52,8 +52,8 @@ class GUI:
         self.rt60_high_plot_frame.grid(row=2, column=1, padx=10, pady=10, sticky='news')
 
         # Frequency change buttons
-        self.low_freq_button = tk.Button(self.master, text="Low Frequency", command=lambda: self.update_plots("low"))
-        self.low_freq_button.grid(row=0, column=1, padx=(199, 1600), sticky='n')
+        self.low_freq_button = tk.Button(self.master, text="Saved Graphs", command=lambda: self.update_plots("low"))
+        self.low_freq_button.grid(row=0, column=1, padx=(205, 1600), sticky='n')
         self.mid_freq_button = tk.Button(self.master, text="Mid Frequency", command=lambda: self.update_plots("mid"))
         self.mid_freq_button.grid(row=0, column=1, padx=(198, 1400), sticky='n')
         self.high_freq_button = tk.Button(self.master, text="High Frequency", command=lambda: self.update_plots("high"))
@@ -154,18 +154,18 @@ class GUI:
         plot_canvas.draw()
         plot_canvas.get_tk_widget().grid(row=0, column=0, sticky='news', padx=10, pady=10)
 
-    def plot_matrix_in_selected_graph(self, matrix):
+    def plot_matrix_in_selected_graph(self, time_values, voltage_values):
         # Clear the previous plot in the free_frame
         for widget in self.free_frame.winfo_children():
             widget.destroy()
 
         # Create a new plot for the matrix in the Selected Graph area
         fig, ax = plt.subplots(figsize=(6, 4.2))
-        ax.imshow(matrix, cmap="viridis", aspect='auto')
-        ax.set_title("Matrix Visualization")
-        ax.set_xlabel("Columns")
-        ax.set_ylabel("Rows")
-        ax.grid(False)
+        ax.plot(time_values, voltage_values, marker='o', linestyle='-', color='b')
+        ax.set_title("Matrix Visualization (Voltage over Time)")
+        ax.set_xlabel("Time (minutes)")
+        ax.set_ylabel("Voltage (V)")
+        ax.grid(True)
 
         # Embed the plot in the free_frame
         plot_canvas = FigureCanvasTkAgg(fig, master=self.free_frame)
@@ -178,10 +178,10 @@ class GUI:
         window.title("Matrix Input")
 
         # Determines input for columns
-        minute_sep_label = tk.Label(window, text="Enter the time separation in minutes:")
-        minute_sep_label.pack()
-        minute_sep_entry = tk.Entry(window)
-        minute_sep_entry.pack()
+        second_sep_label = tk.Label(window, text="Enter the time separation in seconds:")
+        second_sep_label.pack()
+        second_sep_entry = tk.Entry(window)
+        second_sep_entry.pack()
 
         total_time_label = tk.Label(window, text="Enter the total number of minutes:")
         total_time_label.pack()
@@ -189,7 +189,7 @@ class GUI:
         total_time_entry.pack()
 
         # Create a canvas for scrolling
-        canvas = tk.Canvas(window)
+        canvas = tk.Canvas(window, height=75)  # Set height for scrollable section
         scrollbar = tk.Scrollbar(window, orient="horizontal", command=canvas.xview)
         scrollable_frame = tk.Frame(canvas)
 
@@ -214,8 +214,8 @@ class GUI:
 
             try:
                 # Retrieve the user inputs
-                minute_sep = float(minute_sep_entry.get())
-                max_time = int(total_time_entry.get())
+                second_sep = float(second_sep_entry.get()) * 60  # Convert minutes to seconds
+                max_time = int(total_time_entry.get()) * 60  # Max time remains in minutes
             except ValueError:
                 messagebox.showerror("Input Error",
                                      "Please enter valid numbers for readings, minute separation, and total time.")
@@ -224,6 +224,7 @@ class GUI:
             # Initialize current time for time labels
             current_time = 0
             col = 1  # Column 0 will have 'Time' label
+            self.time_values = []  # Store time values here
 
             # Set 'Time' and 'Voltage' labels
             tk.Label(scrollable_frame, text="Time").grid(row=0, column=0, padx=5, pady=5)
@@ -231,9 +232,10 @@ class GUI:
 
             # Generate time labels dynamically based on minute separation and max time
             while current_time <= max_time:
-                label = tk.Label(scrollable_frame, text=f"{current_time} min")
+                label = tk.Label(scrollable_frame, text=f"{current_time} s")
                 label.grid(row=0, column=col, padx=5, pady=5)
-                current_time += minute_sep
+                self.time_values.append(current_time)  # Save each time value
+                current_time += second_sep / 60
                 col += 1
 
             # Generate the matrix input fields for voltages
@@ -263,6 +265,17 @@ class GUI:
             except ValueError:
                 messagebox.showerror("Input Error", "Please fill all entries with valid integers.")
 
+        def graph_matrix():
+            try:
+                # Extract voltage values from matrix entries
+                voltage_values = [float(entry.get()) for entry in self.matrix_entries[0]]
+
+                # Plot the time vs voltage values in the "Selected Graph"
+                self.plot_matrix_in_selected_graph(self.time_values, voltage_values)
+
+            except ValueError:
+                messagebox.showerror("Input Error", "Please ensure all voltage entries are filled with valid numbers.")
+
         generate_button = tk.Button(window, text="Generate Matrix", command=generate_matrix_input)
         generate_button.pack(pady=10)
 
@@ -271,6 +284,12 @@ class GUI:
 
         result = tk.Text(window, height=10, width=30)
         result.pack(pady=10)
+
+        graph_button = tk.Button(window, text="Graph Matrix", command=graph_matrix)
+        graph_button.pack(side=tk.LEFT, padx=10)
+
+        save_button = tk.Button(window, text="Save Matrix", command=print_matrix)
+        save_button.pack(side=tk.RIGHT, padx=20)
 
 
 def main():
