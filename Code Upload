@@ -1,7 +1,8 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import simpledialog, messagebox
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pickle
 
 
 # Scrollable Frame for GUI
@@ -23,6 +24,21 @@ class ScrollableFrame(tk.Frame):
 
     def on_canvas_configure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+
+# Function to save matrices to a file
+def save_matrices_to_file(saved_matrices, filename="saved_matrices.pkl"):
+    with open(filename, 'wb') as f:
+        pickle.dump(saved_matrices, f)
+
+
+# Function to load matrices from a file
+def load_matrices_from_file(filename="saved_matrices.pkl"):
+    try:
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
+    except (FileNotFoundError, EOFError):
+        return {}  # Return empty dict if no file or file is empty
 
 
 # GUI Class
@@ -64,6 +80,9 @@ class GUI:
         self.plot_empty(self.rt60_low_plot_frame, title="Second Graph")
         self.plot_empty(self.rt60_mid_plot_frame, title="Comparison Graph")
         self.plot_empty(self.rt60_high_plot_frame, title="Multi-Comparison Graph")
+
+        # Load previously saved matrices from file
+        self.saved_matrices = load_matrices_from_file()
 
         # Button to load file
         self.load_btn = tk.Button(self.master, text='Create Matrix', command=self.create_matrix_input_window)
@@ -163,7 +182,7 @@ class GUI:
         fig, ax = plt.subplots(figsize=(6, 4.2))
         ax.plot(time_values, voltage_values, marker='o', linestyle='-', color='b')
         ax.set_title("Matrix Visualization (Voltage over Time)")
-        ax.set_xlabel("Time (minutes)")
+        ax.set_xlabel("Time (seconds)")
         ax.set_ylabel("Voltage (V)")
         ax.grid(True)
 
@@ -171,6 +190,48 @@ class GUI:
         plot_canvas = FigureCanvasTkAgg(fig, master=self.free_frame)
         plot_canvas.draw()
         plot_canvas.get_tk_widget().grid(row=0, column=0, sticky='news', padx=10, pady=10)
+
+    # Function to save created graphs
+    saved_graphs = {}
+
+    def save_function(self, saved_matrices, saved_graphs_dropdown, saved_graphs_var):
+        # Ask user for a name for the matrix
+        matrix_name = simpledialog.askstring("Input", "Enter a name for the matrix:")
+
+        if not matrix_name:
+            messagebox.showerror("Error", "Matrix name cannot be empty!")
+            return
+
+        if matrix_name in saved_matrices:
+            messagebox.showerror("Error", f"A matrix named '{matrix_name}' already exists!")
+            return
+
+        # Collect the matrix data (time and voltage)
+        try:
+            voltage_values = []
+            for entry in self.matrix_entries[0]:  # Assuming only one row for voltage entries
+                value = float(entry.get())
+                voltage_values.append(value)
+
+            # Save the matrix as a dictionary with time and voltage data
+            matrix_data = {
+                'time': self.time_values,
+                'voltage': voltage_values
+            }
+
+            # Store the matrix under the given name
+            saved_matrices[matrix_name] = matrix_data
+
+            # Add the matrix name to the dropdown (assuming 'saved_graphs_dropdown' is the dropdown menu)
+            saved_graphs_dropdown['menu'].add_command(label=matrix_name,
+                                                      command=tk._setit(saved_graphs_var, matrix_name))
+
+            # Show success message
+            messagebox.showinfo("Success", f"Matrix '{matrix_name}' saved successfully!")
+
+        except ValueError:
+            messagebox.showerror("Error", "Invalid voltage values entered!")
+            return
 
     # Function to generate input fields for the matrix
     def create_matrix_input_window(self):
@@ -215,7 +276,7 @@ class GUI:
             try:
                 # Retrieve the user inputs
                 second_sep = float(second_sep_entry.get()) * 60  # Convert minutes to seconds
-                max_time = int(total_time_entry.get()) * 60  # Max time remains in minutes
+                max_time = float(total_time_entry.get()) * 60  # Max time remains in minutes
             except ValueError:
                 messagebox.showerror("Input Error",
                                      "Please enter valid numbers for readings, minute separation, and total time.")
@@ -288,8 +349,17 @@ class GUI:
         graph_button = tk.Button(window, text="Graph Matrix", command=graph_matrix)
         graph_button.pack(side=tk.LEFT, padx=10)
 
-        save_button = tk.Button(window, text="Save Matrix", command=print_matrix)
+        saved_matrices = {}
+        save_button = tk.Button(window, text="Save Matrix", command=lambda: self.save_function(saved_matrices,
+                                                                                               saved_graphs_dropdown,
+                                                                                               saved_graphs_var))
         save_button.pack(side=tk.RIGHT, padx=20)
+
+        saved_graphs_var = tk.StringVar(window)
+        saved_graphs_var.set("Select a saved matrix")
+
+        saved_graphs_dropdown = tk.OptionMenu(window, saved_graphs_var, "Select a saved matrix")
+        saved_graphs_dropdown.pack()
 
 
 def main():
